@@ -118,6 +118,7 @@ int GalaxySimulationInitialize(FILE *fptr, FILE *Outfptr,
 	GalaxySimulationGasHaloDensity;
 
   int GalaxySimulationIterateRebuildHierarchy = TRUE; // IF you have a solution senstive AMR strategy, this should be true.
+  int GalaxySimulationStaticHierarchyAfterInit = TRUE; // IF you have a solution senstive AMR strategy, this should be true.
 
   int   GalaxySimulationRefineAtStart,
     GalaxySimulationUseMetallicityField;
@@ -206,6 +207,8 @@ dummy[0] = 0;
 		  &GalaxySimulationRefineAtStart);
     ret += sscanf(line, "GalaxySimulationIterateRebuildHierarchy = %"ISYM,
 		  &GalaxySimulationIterateRebuildHierarchy);
+    ret += sscanf(line, "GalaxySimulationStaticHierarchyAfterInit = %"ISYM,
+		  &GalaxySimulationStaticHierarchyAfterInit);
 
     ret += sscanf(line, "GalaxySimulationUseMetallicityField = %"ISYM,
 		  &GalaxySimulationUseMetallicityField);
@@ -511,6 +514,9 @@ if(SetBaryons){
     }
     MHD_ProjectE=TRUE;
     MHD_ProjectB=FALSE;
+
+    if ( GalaxySimulationStaticHierarchyAfterInit )
+        MetaData.StaticHierarchy=TRUE;
 
   } // end: if (GalaxySimulationRefineAtStart)
 } 

@@ -1477,6 +1477,7 @@ int ReadParameterFile(FILE *fptr, TopGridData &MetaData, float *Initialdt)
     if (strstr(line, "DrivenFlowMach")      ) ret++;
     if (strstr(line, "DrivenFlowMagField")  ) ret++;
     if (strstr(line, "DrivenFlowDensity")      ) ret++;
+    if (strstr(line, "GalaxySimulation")      ) ret++;
     if (strstr(line, "DrivenFlowPressure")      ) ret++;
 
     if (strstr(line, "\"\"\"")              ) comment_count++;
