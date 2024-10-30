@@ -1612,9 +1612,12 @@ iveParticles;};
    int ReturnNumberOfSinkParticles() {
       int total = 0;
       if (MyProcessorNumber == ProcessorNumber)
-         for (int n = 0; n < NumberOfParticles; n++)
+         for (int n = 0; n < NumberOfParticles; n++){
+            if (ParticleType[n] > NUM_PARTICLE_TYPES || ParticleType[n] < -1)
+               ParticleMass[n] = FLOAT_UNDEFINED;
             if (ParticleType[n] == PARTICLE_TYPE_MUST_REFINE)
                total+=1;
+         }
       return total;
    };
    
