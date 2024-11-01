@@ -360,7 +360,7 @@ int grid::GalaxySimulationInitializeGrid(FLOAT DiskRadius,
 
   /* allocate fields */
   if ( BaryonField[0] == NULL )
-  this->AllocateGrids();
+      this->AllocateGrids();
 
   /* I'm commenting this out because the metal field should
      be set during grid initialization rather than just setting
