@@ -135,6 +135,9 @@ public:
     char *BzName = "Bz";
     char *PhiName = "Phi";
     char *PotName = "PotentialField";
+    char *Acceleration0Name = "Acceleration_x";
+    char *Acceleration1Name = "Acceleration_y";
+    char *Acceleration2Name = "Acceleration_z";
 
     /* local declarations */
 
@@ -323,10 +326,15 @@ public:
       DataLabel[count++] = GEName;
     if ( WritePotential )
         DataLabel[count++] = PotName;
+    if(WriteAcceleration){
+        DataLabel[count++] = Acceleration0Name;
+        DataLabel[count++] = Acceleration1Name;
+        DataLabel[count++] = Acceleration2Name;
+    }
 
     if (HydroMethod == MHD_RK) {
-      DataLabel[count++] = (char*) BxName;
-      DataLabel[count++] = (char*) ByName;
+        DataLabel[count++] = (char*) BxName;
+        DataLabel[count++] = (char*) ByName;
       DataLabel[count++] = (char*) BzName;
       DataLabel[count++] = (char*) PhiName;
     }

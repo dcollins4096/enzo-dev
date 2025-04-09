@@ -79,6 +79,9 @@ int GalaxySimulationInitialize(FILE *fptr, FILE *Outfptr,
   char *BzName      = "Bz";
   char *PhiName     = "Phi";
   char *PotName     = "PotentialField";
+  char *Acceleration0Name = "Acceleration_x";
+  char *Acceleration1Name = "Acceleration_y";
+  char *Acceleration2Name = "Acceleration_z";
   /* declarations */
 
   char  line[MAX_LINE_LENGTH];
@@ -591,12 +594,17 @@ if(SetBaryons){
  DataLabel[count++] = DensName;
  DataLabel[count++] = TEName;
  if (DualEnergyFormalism)
-   DataLabel[count++] = GEName;
+     DataLabel[count++] = GEName;
  if ( WritePotential )
      DataLabel[count++] = PotName;
+ if(WriteAcceleration){
+     DataLabel[count++] = Acceleration0Name;
+     DataLabel[count++] = Acceleration1Name;
+     DataLabel[count++] = Acceleration2Name;
+ }
  DataLabel[count++] = Vel1Name;
  if(MetaData.TopGridRank > 1)
-   DataLabel[count++] = Vel2Name;
+     DataLabel[count++] = Vel2Name;
  if(MetaData.TopGridRank > 2)
    DataLabel[count++] = Vel3Name;
   if( UseMHD){

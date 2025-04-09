@@ -235,6 +235,11 @@ int grid::GalaxySimulationInitializeGrid(FLOAT DiskRadius,
     FieldType[NumberOfBaryonFields++] = InternalEnergy;
   if ( WritePotential )
       FieldType[NumberOfBaryonFields++] = GravPotential;
+  if(WriteAcceleration){
+      FieldType[NumberOfBaryonFields++] = Acceleration0;
+      FieldType[NumberOfBaryonFields++] = Acceleration1;
+      FieldType[NumberOfBaryonFields++] = Acceleration2;
+  }
   vel = NumberOfBaryonFields;
   FieldType[NumberOfBaryonFields++] = Velocity1;
   if (GridRank > 1) 
