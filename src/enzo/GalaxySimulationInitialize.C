@@ -78,6 +78,7 @@ int GalaxySimulationInitialize(FILE *fptr, FILE *Outfptr,
   char *ByName      = "By";
   char *BzName      = "Bz";
   char *PhiName     = "Phi";
+  char *PotName     = "PotentialField";
   /* declarations */
 
   char  line[MAX_LINE_LENGTH];
@@ -591,6 +592,8 @@ if(SetBaryons){
  DataLabel[count++] = TEName;
  if (DualEnergyFormalism)
    DataLabel[count++] = GEName;
+ if ( WritePotential )
+     DataLabel[count++] = PotName;
  DataLabel[count++] = Vel1Name;
  if(MetaData.TopGridRank > 1)
    DataLabel[count++] = Vel2Name;

@@ -134,6 +134,7 @@ public:
     char *ByName = "By";
     char *BzName = "Bz";
     char *PhiName = "Phi";
+    char *PotName = "PotentialField";
 
     /* local declarations */
 
@@ -320,6 +321,8 @@ public:
     DataLabel[count++] = TEName;
     if (DualEnergyFormalism)
       DataLabel[count++] = GEName;
+    if ( WritePotential )
+        DataLabel[count++] = PotName;
 
     if (HydroMethod == MHD_RK) {
       DataLabel[count++] = (char*) BxName;
