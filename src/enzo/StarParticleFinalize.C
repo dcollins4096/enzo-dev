@@ -48,7 +48,7 @@ int StarParticleSubtractAccretedMass(TopGridData *MetaData,
 				     Star *&AllStars);
 int StarParticleDeath(LevelHierarchyEntry *LevelArray[], int level,
 		      Star *&AllStars);
-int CommunicationMergeStarParticle(HierarchyEntry *Grids[], int NumberOfGrids);
+int CommunicationMergeStarParticle(LevelHierarchyEntry *LevelArray[], int level);
 void DeleteStarList(Star * &Node);
 
 int StarParticleFinalize(HierarchyEntry *Grids[], TopGridData *MetaData,
@@ -103,15 +103,22 @@ int StarParticleFinalize(HierarchyEntry *Grids[], TopGridData *MetaData,
   
   if (STARMAKE_METHOD(SINK_PARTICLE) && level == MaximumRefinementLevel) {
     TotalMass = 0.0;
-    for (l = 0; l <= MaximumRefinementLevel; l++)
-      for (Temp = LevelArray[l]; Temp; Temp = Temp->NextGridThisLevel)
-	TotalMass += Temp->GridData->ReturnTotalSinkMass();
+    int NumOfSinks = 0;
+    for (l = 0; l <= MaximumRefinementLevel; l++){
+      int NSthislevel = 0;
+      for (Temp = LevelArray[l]; Temp; Temp = Temp->NextGridThisLevel){
+       TotalMass += Temp->GridData->ReturnTotalSinkMass();
+       NSthislevel+= Temp->GridData->ReturnNumberOfSinkParticles();
+        }
+      NumOfSinks+=NSthislevel;
+    }
 #ifdef USE_MPI
     CommunicationReduceValues(&TotalMass, 1, MPI_SUM);
+    CommunicationReduceValues(&NumOfSinks, 1, MPI_SUM);
 #endif
     if (debug)
-      fprintf(stdout, "SinkParticle: Time = %"GOUTSYM", TotalMass = %"GSYM"\n", 
-	      TimeNow, TotalMass);
+      if(MyProcessorNumber == ROOT_PROCESSOR) 
+        fprintf(stdout, "SinkParticle: Time = %"GOUTSYM", TotalMass = %"GSYM" NumberOfSinks:%d\n",TimeNow, TotalMass,NumOfSinks);
   }
 
   /* Subtract gas from the grids that has accreted on to the star particles */
@@ -172,7 +179,7 @@ int StarParticleFinalize(HierarchyEntry *Grids[], TopGridData *MetaData,
   /* Merge star particles */
 
   if (STARMAKE_METHOD(SINK_PARTICLE) && level == MaximumRefinementLevel) {  
-    if (CommunicationMergeStarParticle(Grids, NumberOfGrids) == FAIL) {
+    if (CommunicationMergeStarParticle(LevelArray, level) == FAIL) {
       printf("CommunicationMergeStarParticle failed.\n");
       return FAIL;
     }
