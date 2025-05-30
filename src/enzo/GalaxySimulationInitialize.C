@@ -36,6 +36,8 @@
 #include "Hierarchy.h"
 #include "LevelHierarchy.h"
 #include "TopGridData.h"
+#include "phys_constants.h"
+#define VCIRC_TABLE_LENGTH 10000
 void WriteListOfFloats(FILE *fptr, int N, float floats[]);
 void WriteListOfFloats(FILE *fptr, int N, FLOAT floats[]);
 void AddLevel(LevelHierarchyEntry *Array[], HierarchyEntry *Grid, int level);
@@ -50,6 +52,15 @@ int Enzo_Version;
 void MHDCTSetupFieldLabels();
 float GetMagneticUnits(float DensityUnits, float LengthUnits, float TimeUnits);		
 int ReadEquilibriumTable(char * name, FLOAT Time);
+
+int nlines(const char* fname);
+int InitializeParticles(grid *thisgrid_orig, HierarchyEntry &TopGrid, TopGridData &MetaData, FLOAT * Center);
+int ReadParticlesFromFile(PINT *Number, int *Type, FLOAT *Position[],
+			    float *Velocity[], float* Mass, const char* fname,
+			    Eint32 particle_type, int &c, FLOAT dx, FLOAT * Center);
+float InterpolateVcircTable(FLOAT radius, FLOAT * VCircRadius, float * VCircVelocity);
+void ReadInVcircData(FLOAT * VCircRadius, float * VCircVelocity);
+
 int GalaxySimulationInitialize(FILE *fptr, FILE *Outfptr, 
 			  HierarchyEntry &TopGrid, TopGridData &MetaData, ExternalBoundary &Exterior, int SetBaryons)
 {
@@ -122,7 +133,7 @@ int GalaxySimulationInitialize(FILE *fptr, FILE *Outfptr,
 	GalaxySimulationGasHaloDensity;
 
   int GalaxySimulationIterateRebuildHierarchy = TRUE; // IF you have a solution senstive AMR strategy, this should be true.
-  int GalaxySimulationStaticHierarchyAfterInit = TRUE; // IF you have a solution senstive AMR strategy, this should be true.
+  int GalaxySimulationStaticHierarchyAfterInit = FALSE; // IF you have a solution senstive AMR strategy, this should be true.
 
   int   GalaxySimulationRefineAtStart,
     GalaxySimulationUseMetallicityField;
@@ -314,6 +325,12 @@ dummy[0] = 0;
       fprintf(stderr, "warning: the following parameter line was not interpreted:\n%s\n", line);
 
   } // end input from parameter file
+  FLOAT VCircRadius[VCIRC_TABLE_LENGTH];
+  float VCircVelocity[VCIRC_TABLE_LENGTH];
+  ReadInVcircData(VCircRadius, VCircVelocity);
+  
+    //
+    //
   /* fix wind values wrt units */
   float DensityUnits, LengthUnits, TemperatureUnits, TimeUnits, VelocityUnits;
   double MassUnits;
@@ -397,10 +414,15 @@ dummy[0] = 0;
 					GalaxySimulationInflowDensity,0,
 					GalaxySimulationInitialBfield,
 					GalaxySimulationInitialBfieldTopology,
+          VCircRadius, VCircVelocity,
 					GalaxySimulationCR,
           SetBaryons
 							       );
     CurrentGrid = CurrentGrid->NextGridThisLevel;
+  }
+
+  if ( DiskGravity + PointSourceGravity == FALSE ){
+      InitializeParticles(TopGrid.GridData, TopGrid, MetaData, GalaxySimulationDiskPosition);
   }
   
   /* Convert minimum initial overdensity for refinement to mass
@@ -489,6 +511,7 @@ if(SetBaryons){
                         GalaxySimulationInflowDensity,level,
                         GalaxySimulationInitialBfield,
                         GalaxySimulationInitialBfieldTopology,
+                        VCircRadius, VCircVelocity,
                         GalaxySimulationCR, 
                         SetBaryons
                             )
@@ -711,4 +734,174 @@ while(GalaxySimulationDebugHold){}
 #endif
  return SUCCESS;
 
+}
+int InitializeParticles(grid *thisgrid, HierarchyEntry &TopGrid, TopGridData &MetaData, FLOAT * Center){
+
+    int GridRank, dim;
+    int *Dims = new int[3]; //hard coded jerk.
+    FLOAT Left[MAX_DIMENSION];
+    FLOAT Right[MAX_DIMENSION];
+    FLOAT CellWidth[MAX_DIMENSION];
+    thisgrid->ReturnGridInfo(&GridRank, Dims, Left, Right);
+    for ( dim=0;dim<GridRank;dim++){
+        CellWidth[dim] = (Right[dim]-Left[dim])/(Dims[dim]-2*NumberOfGhostZones);
+    }
+
+
+
+
+
+    int nBulge, nDisk, nHalo, nParticles;
+    nBulge = nlines("bulge.dat");
+    if(debug) fprintf(stderr, "InitializeParticles: Number of Bulge Particles %"ISYM"\n", nBulge);
+    nDisk = nlines("disk.dat");
+    if(debug) fprintf(stderr, "InitializeParticles: Number of Disk Particles %"ISYM"\n", nDisk);
+    nHalo = nlines("halo.dat");
+    if(debug) fprintf(stderr, "InitializeParticles: Number of Halo Particles %"ISYM"\n", nHalo);
+    nParticles = nBulge + nDisk + nHalo;
+    if(debug) fprintf(stderr, "InitializeParticles: Total Number of Particles %"ISYM"\n", nParticles);
+
+    // Initialize particle arrays
+    PINT *Number = new PINT[nParticles];
+    int *Type = new int[nParticles];
+    FLOAT *Position[MAX_DIMENSION];
+    float *Velocity[MAX_DIMENSION];
+    for (int i = 0; i < GridRank; i++)
+    {
+      Position[i] = new FLOAT[nParticles];
+      Velocity[i] = new float[nParticles];
+    }
+    float *Mass = new float[nParticles];
+    float *Attribute[MAX_NUMBER_OF_PARTICLE_ATTRIBUTES];
+    for (int i = 0; i < NumberOfParticleAttributes; i++)
+    {
+      Attribute[i] = new float[nParticles];
+      for (int j = 0; j < nParticles; j++)
+	Attribute[i][j] = FLOAT_UNDEFINED;
+    }
+
+    FLOAT dx = CellWidth[0];
+    // Read them in and assign them as we go
+    int count = 0;
+    ReadParticlesFromFile(
+      Number, Type, Position, Velocity, Mass,
+      "bulge.dat", PARTICLE_TYPE_STAR, count, dx,Center);
+    ReadParticlesFromFile(
+      Number, Type, Position, Velocity, Mass,
+      "disk.dat", PARTICLE_TYPE_STAR, count, dx,Center);
+    ReadParticlesFromFile(
+      Number, Type, Position, Velocity, Mass,
+      "halo.dat", PARTICLE_TYPE_DARK_MATTER, count, dx,Center);
+
+    thisgrid->SetNumberOfParticles(count);
+    thisgrid->SetParticlePointers(Mass, Number, Type, Position,
+				  Velocity, Attribute);
+    thisgrid->ExtraFunction("In Particle Creation");
+    MetaData.NumberOfParticles = count;
+
+    return SUCCESS;
+}
+int ReadParticlesFromFile(PINT *Number, int *Type, FLOAT *Position[],
+			    float *Velocity[], float* Mass, const char* fname,
+			    Eint32 particle_type, int &c, FLOAT dx, FLOAT * Center){
+    FILE *fptr;
+    char line[MAX_LINE_LENGTH];
+    int ret;
+    FLOAT x, y, z;
+    float vx, vy, vz;
+    double mass;
+
+    float DensityUnits=1, LengthUnits=1, VelocityUnits=1, TimeUnits=1,
+      TemperatureUnits=1;
+    double MassUnits=1;
+
+    if (GetUnits(&DensityUnits, &LengthUnits, &TemperatureUnits,
+		 &TimeUnits, &VelocityUnits, &MassUnits, 0) == FAIL) {
+      ENZO_FAIL("Error in GetUnits.");
+    }
+
+    fptr = fopen(fname, "r");
+
+    while(fgets(line, MAX_LINE_LENGTH, fptr) != NULL)
+    {
+      ret +=
+	sscanf(line,
+	       "%"PSYM" %"PSYM" %"PSYM" %"FSYM" %"FSYM" %"FSYM" %"FSYM,
+	       &x, &y, &z, &vx, &vy, &vz, &mass);
+
+      Position[0][c] = x * kpc_cm / LengthUnits + Center[0];
+      Position[1][c] = y * kpc_cm / LengthUnits + Center[1];
+      Position[2][c] = z * kpc_cm / LengthUnits + Center[2];
+
+      Velocity[0][c] = vx * km_cm / VelocityUnits;
+      Velocity[1][c] = vy * km_cm / VelocityUnits;
+      Velocity[2][c] = vz * km_cm / VelocityUnits;
+
+      // Particle masses are actually densities.
+      Mass[c] = mass * 1e9 * SolarMass / MassUnits / dx / dx / dx;
+      Type[c] = particle_type;
+      Number[c] = c++;
+    }
+
+    fclose(fptr);
+
+    return c;
+}
+
+int nlines(const char* fname) {
+
+  FILE* fptr = fopen(fname, "r");
+  int ch, n = 0;
+
+  do
+  {
+    ch = fgetc(fptr);
+    if(ch == '\n')
+      n++;
+  } while (ch != EOF);
+
+  fclose(fptr);
+  if (debug) fprintf(stderr,"Read %"ISYM" lines \n", n);
+  return n;
+}
+
+void ReadInVcircData(FLOAT * VCircRadius, float * VCircVelocity)
+{
+FILE *fptr;
+char line[MAX_LINE_LENGTH];
+int i=0, ret;
+float vcirc;
+FLOAT rad;
+
+fptr = fopen("vcirc.dat" , "r");
+
+while (fgets(line, MAX_LINE_LENGTH, fptr) != NULL)
+{
+  ret += sscanf(line, "%"PSYM" %"FSYM, &rad, &vcirc);
+  VCircRadius[i] = rad*kpc_cm; // 3.08567758e21 = kpc/cm
+  VCircVelocity[i] = vcirc*1e5; // 1e5 = (km/s)/(cm/s)
+  i += 1;
+}
+
+fclose(fptr);
+} // ReadInVcircData
+
+float InterpolateVcircTable(FLOAT radius, FLOAT * VCircRadius, float * VCircVelocity)
+{
+int i;
+
+for (i = 0; i < VCIRC_TABLE_LENGTH; i++)
+  if (radius < VCircRadius[i])
+break;
+
+if (i == 0)
+  return (VCircVelocity[i]) * (radius - VCircRadius[0]) / VCircRadius[0];
+else if (i == VCIRC_TABLE_LENGTH)
+  ENZO_FAIL("Fell off the circular velocity interpolation table");
+
+// we know the radius is between i and i-1
+return VCircVelocity[i-1] +
+  (VCircVelocity[i] - VCircVelocity[i-1]) *
+  (radius - VCircRadius[i-1])  /
+  (VCircRadius[i] - VCircRadius[i-1]);
 }

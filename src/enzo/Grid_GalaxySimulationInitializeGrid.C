@@ -147,6 +147,7 @@ double halo_mod_DMmass_at_r(double r);
 void halo_init(struct CGMdata& CGM_data, grid* Grid, float Rstop=-1, int GasHalo_override=0);
 
 
+float InterpolateVcircTable(FLOAT radius, FLOAT * VCircRadius, float * VCircVelocity);
 int grid::GalaxySimulationInitializeGrid(FLOAT DiskRadius,
            FLOAT GalaxyMass,
            FLOAT GasMass,
@@ -184,6 +185,7 @@ int grid::GalaxySimulationInitializeGrid(FLOAT DiskRadius,
            int level,
            FLOAT GalaxySimulationInitialBfield[MAX_DIMENSION],
            int GalaxySimulationInitialBfieldTopology,
+            FLOAT  VCircRadius[], float  VCircVelocity[],
            FLOAT GalaxySimulationCR,
            int SetBaryons
           )
@@ -560,6 +562,9 @@ int grid::GalaxySimulationInitializeGrid(FLOAT DiskRadius,
 							    rcyl*LengthUnits,
 							    zheight*LengthUnits)
 		    /VelocityUnits;
+        else{
+            DiskVelocityMag = InterpolateVcircTable(r_sph*LengthUnits, VCircRadius, VCircVelocity)/VelocityUnits;
+        }
         
 	    if (PointSourceGravity*DiskGravity != FALSE ) 
 	      ENZO_FAIL("Cannot activate both PointSource and Disk gravity options for Isolated Galaxy");
@@ -738,17 +743,20 @@ float gauss_mass(FLOAT r, FLOAT z, FLOAT xpos, FLOAT ypos, FLOAT zpos, FLOAT inv
     FLOAT xrot,yrot,zrot;
     int i,j,k;
     FLOAT rrot;
+    FLOAT rcoord, zcoord;
+    float  kludge2;
 
     for (i=0;i<5;i++) {
 
         xResult[i] = 0.0;
         for (j=0;j<5;j++) {
-        
+
             yResult[j] = 0.0;
             for (k=0;k<5;k++) {
 
                 rot_to_disk(xpos+EvaluationPoints[i]*cellwidth/2.0,ypos+EvaluationPoints[j]*cellwidth/2.0,zpos+EvaluationPoints[k]*cellwidth/2.0,xrot,yrot,zrot,inv);
                 rrot = sqrt(POW(xrot,2)+POW(yrot,2));
+
 
                 if( PointSourceGravity > 0 )
                     yResult[j] += cellwidth/2.0*Weights[k]*PEXP(-rrot/ScaleHeightR)/POW(cosh(zrot/(2.0*ScaleHeightz)),2);
@@ -757,7 +765,16 @@ float gauss_mass(FLOAT r, FLOAT z, FLOAT xpos, FLOAT ypos, FLOAT zpos, FLOAT inv
                         yResult[j] += cellwidth/2.0*Weights[k]/cosh(rrot/ScaleHeightR)/cosh(fabs(zrot)/ScaleHeightz);
                     else if( rrot/Mpc < TruncRadius )
                         yResult[j] += cellwidth/2.0*Weights[k]/cosh(rrot/ScaleHeightR)/cosh(fabs(zrot)/ScaleHeightz)
-                                        *0.5*(1.0+cos(pi*(rrot-SmoothRadius*Mpc)/(SmoothLength*Mpc)));
+                            *0.5*(1.0+cos(pi*(rrot-SmoothRadius*Mpc)/(SmoothLength*Mpc)));
+                }else{ //not disk or point gravity
+                    rcoord = sqrt((POW(xpos+EvaluationPoints[i]*cellwidth/2.0, 2.0) +
+                                POW(ypos+EvaluationPoints[j]*cellwidth/2.0, 2.0) ) );
+                    zcoord = fabs(zpos+EvaluationPoints[k]*cellwidth/2.0);
+                    kludge2 = 
+                        cellwidth/2.0 * Weights[k] * 
+                        PEXP(-rcoord/ScaleHeightR) *
+                        PEXP(-fabs(zcoord)/ScaleHeightz);
+                    yResult[j] +=kludge2;
                 } // end disk gravity if
 
             }
